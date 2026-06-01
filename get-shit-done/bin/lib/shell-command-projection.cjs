@@ -59,6 +59,28 @@ function projectLocalHookPrefix({ runtime = 'claude', dirName }) {
     : `"$CLAUDE_PROJECT_DIR"/${dirName}`;
 }
 
+/**
+ * Project the runner token for a LOCAL-install managed `.sh` hook command.
+ *
+ * Claude Code executes hook command strings *inside* Git Bash on Windows. A
+ * local `.sh` hook wrapped with the ABSOLUTE bash.exe path (what
+ * resolveBashRunner returns on win32) therefore makes the outer bash try to
+ * execute bash.exe as a script — `bash.exe: bash.exe: cannot execute binary
+ * file` (#166 / #377 / #580). The global buildHookCommand() path already drops
+ * the wrapper for Claude on Windows; this mirrors that policy for the
+ * local-install path, which previously did not have the guard.
+ *
+ * Bare `bash` is guaranteed on PATH inside Claude's Git Bash hook shell, so it
+ * resolves where the absolute path fails, and it does not depend on the script
+ * file's executable bit surviving the installer's writer. Other runtimes keep
+ * the explicit (absolute) runner: Gemini/Codex launch hooks from
+ * PowerShell/cmd, where bare `bash` may not be on PATH (#3393).
+ */
+function projectLocalShellHookRunner({ runtime = 'generic', platform = process.platform, absoluteBashRunner = null }) {
+  if (platform === 'win32' && runtime === 'claude') return 'bash';
+  return absoluteBashRunner;
+}
+
 function projectPortableHookBaseDir({ configDir, homeDir }) {
   const normalizedConfigDir = String(configDir || '').replace(/\\/g, '/');
   const normalizedHome = String(homeDir || '').replace(/\\/g, '/');
@@ -478,6 +500,7 @@ module.exports = {
   formatHookCommandForRuntime,
   formatManagedHookScriptToken,
   projectLocalHookPrefix,
+  projectLocalShellHookRunner,
   projectPortableHookBaseDir,
   projectShellCommandText,
   projectManagedHookCommand,

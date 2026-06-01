@@ -9,6 +9,7 @@ const {
   isManagedHookBasename,
   isManagedHookCommand,
   projectLocalHookPrefix,
+  projectLocalShellHookRunner,
   projectLegacySettingsHookCommand,
   projectManagedHookCommand,
   projectPathActionProjection,
@@ -9699,10 +9700,21 @@ function install(isGlobal, runtime = 'claude', options = {}) {
       runtime,
       platform: process.platform,
     });
-  const localShellCmd = (hookFile) => localBashRunner === null
+  // #580: Claude Code runs hook commands inside Git Bash on Windows, so wrapping
+  // a local .sh hook with the ABSOLUTE bash.exe path (localBashRunner) makes the
+  // outer bash try to execute bash.exe as a script ("cannot execute binary
+  // file"). The global buildHookCommand() path already guards Claude+win32; this
+  // mirrors that policy for local installs by using bare `bash` for Claude on
+  // Windows (other runtimes keep the absolute runner — see projectLocalShellHookRunner).
+  const localShellRunner = projectLocalShellHookRunner({
+    runtime,
+    platform: process.platform,
+    absoluteBashRunner: localBashRunner,
+  });
+  const localShellCmd = (hookFile) => localShellRunner === null
     ? null
     : projectShellCommandText({
-      runnerToken: localBashRunner,
+      runnerToken: localShellRunner,
       argTokens: [`${localPrefix}/hooks/${hookFile}`],
       runtime,
       platform: process.platform,
